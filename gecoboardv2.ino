@@ -12,13 +12,13 @@
 
 #include <ArduinoBLE.h>
 
+const int MAXLEDSDISPLAYED = 14; 
 int ledMapping[200]; // more or less are 200 leds
+int ledsToShow[MAXLEDSDISPLAYED]; // to the board
 const char* deviceServiceUuid =   "9ecadc24-0ee5-a9e0-93f3-a3b5-0100406e";
 const char* deviceServiceCharacteristicUuid = "19b10001-e8f2-537e-4f6c-d104768a1214";
 BLEService gestureService("6E400001-B5A3-F393-E0A9-E50E24DCCA9E");
 BLEStringCharacteristic gestureCharacteristic("6E400002-B5A3-F393-E0A9-E50E24DCCA9E", BLERead | BLEWrite, 2000);
-
-String gesture = "";
 
 void setupLedMap() {
   int l;
@@ -48,7 +48,7 @@ void setupLedMap() {
   ledMapping[69] = 21;
   ledMapping[38] = 22;
   ledMapping[2] = 23;
-  ledMapping[32]] = 24; //inizio riga 4
+  ledMapping[32] = 24; //inizio riga 4
   ledMapping[39] = 25;
   ledMapping[75] = 26;
   ledMapping[104] = 27;
@@ -141,8 +141,33 @@ void setupLedMap() {
   ledMapping[197] = 114; 
 }
 
+int ledsFound = 0;
+
 int getLed(int l) {
   return ledMapping[l] - 1;
+}
+
+void convertLeds(String sequence) {
+  String currentNumber = "";
+  ledsFound = 0;
+  for (int i = 0; i < sequence.length(); i++) {
+    char c = sequence[i];
+
+    if (isDigit(c)) {
+      currentNumber += c; // Append the digit to our temporary string
+    } 
+    else if (currentNumber.length() > 0) {
+      // We hit a non-digit character, so the number we were building is finished
+      ledsToShow[ledsFound] = getLed(currentNumber.toInt());
+      ledsFound++;
+      currentNumber = ""; // Reset for the next number
+    }
+  }
+
+}
+
+void displayLeds(){
+  //arduino code.
 }
 
 void setup() {
@@ -177,14 +202,12 @@ void setup() {
   Serial.println(" ");
 }
 
-
 void loop() {
-
+  String gesture = "";
   BLEDevice central = BLE.central();
 
   Serial.println("- Waiting for central device connecting...");
   delay(500);
-
 
   if (central) {
     digitalWrite(LEDR, LOW);
@@ -196,10 +219,29 @@ void loop() {
 
     while (central.connected()) {
       if (gestureCharacteristic.written()) {
-         gesture = gestureCharacteristic.value();
-         Serial.print("Received... ");
-         Serial.println(gesture);
-       }
+        String gestureTok = gestureCharacteristic.value();
+        Serial.println("Received: ");
+        Serial.println(gestureTok);
+        gesture = gesture + gestureTok;
+        int gestureLen = gesture.length();
+        if(gestureLen > 0 && gesture[0]=='l' && gesture[gestureLen-1]=='#') {
+            Serial.println("To be converted");
+            Serial.println(gesture);
+            convertLeds(gesture);
+            if(ledsFound > 0){
+              Serial.println("Converted: ");
+              for(int l = 0;l<ledsFound;l++) {
+                Serial.print(ledsToShow[l]);
+                Serial.print(",");
+              }
+              Serial.println("");
+            } else {
+              Serial.println("Converted NONE");
+            }
+            displayLeds();
+            gesture = "";
+        }
+      }
 
     }
     
@@ -211,4 +253,3 @@ void loop() {
   }
 
 }
-
