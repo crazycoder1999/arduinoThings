@@ -1,3 +1,5 @@
+
+
 /*
 
   BLE_Peripheral.ino
@@ -9,23 +11,34 @@
   - Arduino Nano 33 BLE. 
 
 */
+/*#include <Adafruit_NeoPixel.h>
+#ifdef __AVR__
+  #include <avr/power.h>
+#endif*/
 
 #include <ArduinoBLE.h>
 
+#define NUM_LEDS    300
+#define step 5
+
+int start = 0;
+int end = step;
+
 const int MAXLEDSDISPLAYED = 14; 
-int ledMapping[200]; // more or less are 200 leds
+int ledMapping[NUM_LEDS]; // more or less are 200 leds
 int ledsToShow[MAXLEDSDISPLAYED]; // to the board
 const char* deviceServiceUuid =   "9ecadc24-0ee5-a9e0-93f3-a3b5-0100406e";
 const char* deviceServiceCharacteristicUuid = "19b10001-e8f2-537e-4f6c-d104768a1214";
 BLEService gestureService("6E400001-B5A3-F393-E0A9-E50E24DCCA9E");
 BLEStringCharacteristic gestureCharacteristic("6E400002-B5A3-F393-E0A9-E50E24DCCA9E", BLERead | BLEWrite, 2000);
+UART mySerial(digitalPinToPinName(10), digitalPinToPinName(9), NC, NC);
 
 void setupLedMap() {
   int l;
-  for(l=0;l<200;l++) {
+  for(l=0;l<NUM_LEDS;l++) { 
     ledMapping[l] = 0;
   }
-  ledMapping[180] = 1;
+  ledMapping[180] = 1; //[ID_ORIGINAL_MOONBOARD] = ID_CUSTOMBOARD;
   ledMapping[179] = 2;
   ledMapping[143] = 3;
   ledMapping[108] = 4;
@@ -121,20 +134,20 @@ void setupLedMap() {
   ledMapping[50] = 94; 
   ledMapping[14] = 95; 
   ledMapping[15] = 96; // inizio riga 16
-  ledMapping[20] = 97; 
-  ledMapping[92] = 98; 
-  ledMapping[123] = 99; 
-  ledMapping[159] = 100; 
-  ledMapping[195] = 101; 
-  ledMapping[196] = 102; // inizio riga 17
-  ledMapping[160] = 103; 
-  ledMapping[127] = 104; 
-  ledMapping[124] = 105; 
-  ledMapping[55] = 106; 
-  ledMapping[52] = 107; 
-  ledMapping[19] = 108; 
-  ledMapping[17] = 109; // inizio riga 18
-  ledMapping[54] = 110; 
+  //ledMapping[195] = 130; 
+  ledMapping[92] = 135; 
+  ledMapping[123] = 155; //4?
+  ledMapping[159] = 143; 
+  ledMapping[195] = 164; // ultimo 16
+  ledMapping[196] = 1; // inizio riga 17
+  ledMapping[160] = 2; 
+  ledMapping[127] = 3; 
+  ledMapping[124] = 4; 
+  ledMapping[55] = 163; 
+  ledMapping[52] = 166; 
+  ledMapping[19] = 173; 
+  ledMapping[17] = 176; // inizio riga 18
+  ledMapping[54] = 178; 
   ledMapping[90] = 111; 
   ledMapping[125] = 112;
   ledMapping[126] = 113; 
@@ -163,18 +176,13 @@ void convertLeds(String sequence) {
       currentNumber = ""; // Reset for the next number
     }
   }
-
-}
-
-void displayLeds(){
-  //arduino code.
 }
 
 void setup() {
-
   setupLedMap();
-  Serial.begin(9600);
-  while (!Serial);  
+  Serial.begin(2400);
+  mySerial.begin(2400);
+//  while (!Serial);
 
   pinMode(LEDR, OUTPUT);
   pinMode(LEDG, OUTPUT);
@@ -205,41 +213,43 @@ void setup() {
 void loop() {
   String gesture = "";
   BLEDevice central = BLE.central();
-
-  Serial.println("- Waiting for central device connecting...");
-  delay(500);
+  mySerial.println("Loop - Waiting for central dev connecting..");
+  Serial.println("Loop - Waiting for central dev connecting..");
+  delay(1000);
 
   if (central) {
     digitalWrite(LEDR, LOW);
     digitalWrite(LEDG, HIGH);
     digitalWrite(LEDB, HIGH);
-    Serial.println("* Connected. Device MAC address: ");
+/*    Serial.println("* Connected. Device MAC address: ");
     Serial.println(central.address());
-    Serial.println(" ");
+    Serial.println(" ");*/
 
     while (central.connected()) {
       if (gestureCharacteristic.written()) {
         String gestureTok = gestureCharacteristic.value();
-        Serial.println("Received: ");
-        Serial.println(gestureTok);
+        //Serial.println("Recv.. ");
+        //Serial.println(gestureTok);
         gesture = gesture + gestureTok;
         int gestureLen = gesture.length();
         if(gestureLen > 0 && gesture[0]=='l' && gesture[gestureLen-1]=='#') {
             Serial.println("To be converted");
             Serial.println(gesture);
+            Serial.println(">>>>");
             convertLeds(gesture);
+            gesture = "";
             if(ledsFound > 0){
-              Serial.println("Converted: ");
+              mySerial.print("S;"); //start seq
               for(int l = 0;l<ledsFound;l++) {
                 Serial.print(ledsToShow[l]);
-                Serial.print(",");
+                Serial.print(";");
+                mySerial.print(ledsToShow[l]);
+                mySerial.print(";");
               }
-              Serial.println("");
+              mySerial.println("E;"); //end seq
             } else {
-              Serial.println("Converted NONE");
+              mySerial.println("S;E;");
             }
-            displayLeds();
-            gesture = "";
         }
       }
 
